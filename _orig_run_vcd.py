@@ -1,19 +1,18 @@
+
+
 import os
 import sys
 import time
 import random
 import pickle
+
 import argparse
 import json
+
 import numpy as np
 import torch
-from timm.models import create_model
-
-import models.VideoMAE.modeling_finetune  # to register our VideoMAE models in timm
-from models.VideoMAE import utils as vmae_utils
 from vcd import VideoConceptDiscovery as VTCD
 from utilities.utils import load_model, save_vcd, prepare_directories
-
 
 def main(args):
     # prepare directories
@@ -39,52 +38,13 @@ def main(args):
         with open(os.path.join(args.save_dir, 'args.json'), 'w') as f:
             json.dump(args.__dict__, f, indent=2)
 
-        my_model = create_model(
-            args.model,
-            pretrained=False,
-            num_classes=args.nb_classes,
-            all_frames=args.num_frames * args.num_segments,
-            tubelet_size=args.tubelet_size,
-            fc_drop_rate=args.fc_drop_rate,
-            drop_rate=args.drop,
-            drop_path_rate=args.drop_path,
-            attn_drop_rate=args.attn_drop_rate,
-            drop_block_rate=None,
-            use_checkpoint=args.use_checkpoint,
-            final_reduction=args.final_reduction,
-            init_scale=args.init_scale,
-        )
-        # load ckpt
-        checkpoint = torch.load(args.checkpoint_path, map_location='cpu')
-        print("Load ckpt from %s" % args.checkpoint_path)
-        checkpoint_model = None
-        for model_key in ("model", "module"):
-            if model_key in checkpoint:
-                checkpoint_model = checkpoint[model_key]
-                print("Load state_dict by model_key = %s" % model_key)
-                break
-        if checkpoint_model is None:
-            checkpoint_model = checkpoint
-
-        # all_keys = list(checkpoint_model.keys())
-        # new_dict = OrderedDict()
-        # for key in all_keys:
-        #     if key.startswith('backbone.'):
-        #         new_dict[key[9:]] = checkpoint_model[key]
-        #     elif key.startswith('encoder.'):
-        #         new_dict[key[8:]] = checkpoint_model[key]
-        #     else:
-        #         new_dict[key] = checkpoint_model[key]
-        # checkpoint_model = new_dict
-
         # load model
-        vmae_utils.load_state_dict(my_model, checkpoint_model)
-        #model = load_model(args, model=my_model)
+        model = load_model(args)
 
         # initialize vcd
         print('Initializing VTCD...')
         start_time = time.time()
-        vcd = VTCD(args, my_model)
+        vcd = VTCD(args, model)
         end_time = time.time()
         print('Initializing VTCD took {:.2f} minutes'.format((end_time-start_time)/60))
 
@@ -99,6 +59,27 @@ def main(args):
         vcd.inter_video_clustering()
         end_time = time.time()
         print('Concept clustering took {:.2f} minutes'.format((end_time-start_time)/60))
+
+    # 3) Compute DAVIS16 metrics
+    if args.Eval_D16_VOS:
+        print('Computing Davis16 performance...')
+        start_time = time.time()
+        if 'davis16' in vcd.args.dataset:
+            from evaluation.vtcd_vos_eval import compute_davis16_vos_score
+            compute_davis16_vos_score(vcd,
+                              first_frame_query=args.first_frame_query,
+                              train_head_search=args.train_head_search,
+                              post_sam=args.post_sam,
+                              num_points=args.num_sam_points,
+                              mode=args.sam_sampling_mode,
+                              sample_factor=args.sample_factor,
+                              use_last_centroid=args.use_last_centroid,
+                              use_box=args.use_box,)
+        else:
+            raise NotImplementedError('Only DAVIS16 metrics are supported.')
+        end_time = time.time()
+        print('Running Davis16 val took {:.2f} minutes'.format((end_time-start_time)/60))
+        exit()
 
     if args.save_concepts or args.save_single_concept_videos:
         start_time = time.time()

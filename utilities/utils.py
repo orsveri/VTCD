@@ -1,5 +1,7 @@
 import pickle
 import os
+from venv import create
+
 import torch
 
 def load_model(args, hook=None, hook_layer=None, feature_hat=None, model=None, hook_dict=None, enable_grad=False):
@@ -297,6 +299,58 @@ def load_model(args, hook=None, hook_layer=None, feature_hat=None, model=None, h
                     # register hook for all layers
                     for lay in hook_layer:
                         model.visual.transformer.resblocks._modules[str(lay)]._modules['attn'].hook_dict = hook_dict[lay] if hook_dict is not None else None
+    elif 'vidmae_custom' in args.model:
+        assert model is not None, "Provide ready model for your custom VideoMAE model"
+        if hook is not None:
+            # remove existing hook if it exists
+            if isinstance(hook_layer, list):
+                if args.cluster_subject == 'block_token':
+                    # remove all hooks
+                    for lay in range(12):
+                        if len(model.blocks._modules[str(lay)]._forward_hooks) > 0:
+                            model.blocks._modules[str(lay)]._forward_hooks.clear()
+                    # register hook
+                    model.blocks._modules[str(hook_layer)].register_forward_hook(hook)
+                    model.blocks._modules[str(hook_layer)].hook_dict = hook_dict if hook_dict is not None else None
+                else:
+                    if 'pre' in args.model:
+                        for lay in range(12):
+                            if len(model.encoder.blocks._modules[str(lay)]._modules['attn']._modules['qkv']._forward_hooks) > 0:
+                                model.encoder.blocks._modules[str(lay)]._modules['attn']._modules['qkv']._forward_hooks.clear()
+                        # register hook for all layers
+                        for lay in hook_layer:
+                            model.encoder.blocks._modules[str(lay)]._modules['attn']._modules['qkv'].register_forward_hook(hook)
+                            model.encoder.blocks._modules[str(lay)]._modules['attn']._modules['qkv'].hook_dict = hook_dict[lay] if hook_dict is not None else None
+                    else:
+                        for lay in range(12):
+                            if len(model.blocks._modules[str(lay)]._modules['attn']._modules['qkv']._forward_hooks) > 0:
+                                model.blocks._modules[str(lay)]._modules['attn']._modules['qkv']._forward_hooks.clear()
+                        # register hook for all layers
+                        for lay in hook_layer:
+                            model.blocks._modules[str(lay)]._modules['attn']._modules['qkv'].register_forward_hook(hook)
+                            model.blocks._modules[str(lay)]._modules['attn']._modules['qkv'].hook_dict = hook_dict[lay] if hook_dict is not None else None
+            else:
+                if args.cluster_subject == 'block_token':
+                    # remove all hooks
+                    for lay in range(12):
+                        if len(model.blocks._modules[str(lay)]._forward_hooks) > 0:
+                            model.blocks._modules[str(lay)]._forward_hooks.clear()
+                    # register hook
+                    model.blocks._modules[str(hook_layer)].register_forward_hook(hook)
+                    model.blocks._modules[str(hook_layer)].hook_dict = hook_dict if hook_dict is not None else None
+                else:
+                    if 'pre' in args.model:
+                        for lay in range(12):
+                            if len(model.encoder.blocks._modules[str(lay)]._modules['attn']._modules['qkv']._forward_hooks) > 0:
+                                model.encoder.blocks._modules[str(lay)]._modules['attn']._modules['qkv']._forward_hooks.clear()
+                        model.encoder.blocks._modules[str(hook_layer)]._modules['attn']._modules['qkv'].register_forward_hook(hook)
+                        model.encoder.blocks._modules[str(hook_layer)]._modules['attn']._modules['qkv'].hook_dict = hook_dict if hook_dict is not None else None
+                    else:
+                        for lay in range(12):
+                            if len(model.blocks._modules[str(lay)]._modules['attn']._modules['qkv']._forward_hooks) > 0:
+                                model.blocks._modules[str(lay)]._modules['attn']._modules['qkv']._forward_hooks.clear()
+                        model.blocks._modules[str(hook_layer)]._modules['attn']._modules['qkv'].register_forward_hook(hook)
+                        model.blocks._modules[str(hook_layer)]._modules['attn']._modules['qkv'].hook_dict = hook_dict if hook_dict is not None else None
     else:
         raise NotImplementedError
     model.eval()

@@ -20,7 +20,7 @@ class VideoConceptDiscovery(object):
     """Discovering video concepts.
     """
 
-    def __init__(self, args, model):
+    def __init__(self, args, model,):
         self.args = args
         self.model = model
 
@@ -78,8 +78,6 @@ class VideoConceptDiscovery(object):
                 # save pkl file
                 with open(cached_file_path, 'wb') as f:
                     pickle.dump(self.dataset, f)
-        elif "DoTA" in args.dataset:
-            self.dataset = self.load_ssv2_videos()
         else:
             raise NotImplementedError
 
@@ -458,11 +456,6 @@ class VideoConceptDiscovery(object):
         concept_retval['full_scene_dp'] = full_scene_dp  # (1).
         concept_retval['seeker_query_mask'] = []
         return concept_retval
-
-    def load_dota_videos(self):
-        # TODO: my part
-        dataset = None
-        return dataset
 
     def _get_thing_traject_desirability(self, div_segm, occl_fracs, query_time):
         '''
